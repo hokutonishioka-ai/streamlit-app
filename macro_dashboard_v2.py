@@ -11,7 +11,7 @@ tickers = {
     "Emerging Market Bonds": "EMB",
     "S&P 500": "^GSPC",
     "VIX": "^VIX",
-    "Dollar Index": "DX-Y.NYB",
+    "Dollar Index Proxy": "UUP",
     "Copper": "HG=F",
     "Oil": "CL=F",
     "Gold": "GC=F",
@@ -21,16 +21,24 @@ tickers = {
 }
 
 period = "6mo"
-
 data = {}
 
 for name, ticker in tickers.items():
     df = yf.download(ticker, period=period)
-    data[name] = df["Close"]
+
+    if df.empty:
+        st.warning(f"No data for {name}")
+        continue
+
+    # Force series
+    price = df["Close"].squeeze()
+
+    data[name] = price
 
 def plot(name):
-    st.subheader(name)
-    st.line_chart(data[name])
+    if name in data:
+        st.subheader(name)
+        st.line_chart(data[name])
 
 col1, col2, col3 = st.columns(3)
 
@@ -40,7 +48,7 @@ with col1:
     plot("VIX")
 
 with col2:
-    plot("Dollar Index")
+    plot("Dollar Index Proxy")
     plot("Copper")
     plot("Oil")
 
@@ -49,23 +57,29 @@ with col3:
     plot("Caterpillar")
     plot("Freeport")
 
-st.header("Crisis Risk Meter")
+st.header("🚨 Crisis Risk Meter")
 
 score = 0
 
-if data["Dollar Index"].pct_change().mean() > 0:
+def trend(series):
+    pct = series.pct_change().dropna()
+    if len(pct) == 0:
+        return 0
+    return float(pct.tail(5).mean())
+
+if "Dollar Index Proxy" in data and trend(data["Dollar Index Proxy"]) > 0:
     score += 1
 
-if data["Emerging Markets ETF"].pct_change().mean() < 0:
+if "Emerging Markets ETF" in data and trend(data["Emerging Markets ETF"]) < 0:
     score += 1
 
-if data["Emerging Market Bonds"].pct_change().mean() < 0:
+if "Emerging Market Bonds" in data and trend(data["Emerging Market Bonds"]) < 0:
     score += 1
 
-if data["VIX"].mean() > 25:
+if "VIX" in data and float(data["VIX"].tail(5).mean()) > 25:
     score += 1
 
-if data["Copper"].pct_change().mean() < 0:
+if "Copper" in data and trend(data["Copper"]) < 0:
     score += 1
 
 if score <= 2:
